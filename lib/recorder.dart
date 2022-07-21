@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:intl/intl.dart' show DateFormat;
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:flutter_sound/flutter_sound.dart';
@@ -19,10 +18,10 @@ class _RecorderState extends State<Recorder> {
   late FlutterSoundRecorder _recordingSession;
   final recordingPlayer = AssetsAudioPlayer();
 
+  bool _isRecording = false;
   bool _isPlaying = false;
 
   late String filePath;
-  String _timerText = '0';
 
 
   @override
@@ -34,6 +33,7 @@ class _RecorderState extends State<Recorder> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text("Recording Test")),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
@@ -41,13 +41,11 @@ class _RecorderState extends State<Recorder> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              ElevatedButton(onPressed: startRecording, child: Text("녹음 시작")),
+              ElevatedButton(onPressed: _isRecording ? null : startRecording, child: Text("녹음 시작")),
               const SizedBox(width:16),
-              ElevatedButton(onPressed: stopRecording, child: Text("녹음 중지")),
+              ElevatedButton(onPressed: _isRecording ? stopRecording : null, child: Text("녹음 중지")),
             ],
           ),
-          const SizedBox(height: 22),
-          Text(_timerText),
           const SizedBox(height: 22),
           ElevatedButton(
               onPressed: () {
@@ -83,6 +81,9 @@ class _RecorderState extends State<Recorder> {
   }
 
   Future<void> startRecording() async {
+    setState(() {
+      _isRecording = true;
+    });
     Directory directory = Directory(dirname(filePath));
     if (!directory.existsSync()) {
       directory.createSync();
@@ -92,20 +93,12 @@ class _RecorderState extends State<Recorder> {
       toFile: filePath,
       codec: Codec.pcm16WAV,
     );
-    StreamSubscription recorderSubscription =
-    _recordingSession.onProgress!.listen((e) {
-      var date = DateTime.fromMillisecondsSinceEpoch(
-          e.duration.inMilliseconds,
-          isUtc: true);
-      var timeText = DateFormat('mm:ss:SS', 'en_GB').format(date);
-      setState(() {
-        _timerText = timeText.substring(0, 8);
-      });
-    });
-    recorderSubscription.cancel();
   }
 
   Future<String?> stopRecording() async {
+    setState(() {
+      _isRecording = false;
+    });
     _recordingSession.closeAudioSession();
     return await _recordingSession.stopRecorder();
   }
@@ -116,6 +109,11 @@ class _RecorderState extends State<Recorder> {
       autoStart: true,
       showNotification: true,
     );
+    recordingPlayer.playlistAudioFinished.listen((event) {
+      setState(() {
+        _isPlaying = false;
+      });
+    });
   }
 
   Future<void> stopPlaying() async {
