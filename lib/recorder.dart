@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
+import 'package:mfcc/mfcc.dart';
 import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -125,8 +126,7 @@ class _RecorderState extends State<Recorder> {
   }
 
   Future<List<int>> getPeakLevels(String _pathAudio) async {
-    File outputFile = File(
-        '/data/user/0/com.flutter.shoutout/cache/1-flutter_sound_example.txt');
+    File outputFile = File('/data/user/0/com.flutter.shoutout/cache/1-flutter_sound_example.txt');
 
     await _flutterFFmpeg
         .execute(
@@ -146,5 +146,17 @@ class _RecorderState extends State<Recorder> {
     });
 
     return wave;
+  }
+
+  List<List<double>> getMFCC(List<double> list) {
+    var sampleRate = 16000;
+    var windowLength = 1024;
+    var windowStride = 512;
+    var fftSize = 512;
+    var numFilter = 20;
+    var numCoefs = 13;
+    var features = MFCC.mfccFeats(list, sampleRate, windowLength, windowStride, fftSize, numFilter, numCoefs);
+
+    return features;
   }
 }
