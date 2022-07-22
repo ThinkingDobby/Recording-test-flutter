@@ -23,7 +23,7 @@ class _RecorderState extends State<Recorder> {
 
   late String _storagePath;
   late String _filePathForRecord;
-  late String _selectedFile;
+  String _selectedFile = '-1';
 
   List<String> _fileList = <String>[];
 
@@ -49,30 +49,11 @@ class _RecorderState extends State<Recorder> {
                   child: Text("녹음 시작")),
               const SizedBox(width: 16),
               ElevatedButton(
-                  onPressed: () {
-                    _isRecording ? stopRecording() : null;
-                    setState(() {
-                      _fileList = loadFiles();
-                    });
-                  },
+                  onPressed: _isRecording ? stopRecording : null,
                   child: Text("녹음 중지")),
             ],
           ),
           const SizedBox(height: 22),
-          ElevatedButton(
-              onPressed: () {
-                if (_fileList.isNotEmpty) {
-                  setState(() {
-                    _isPlaying = !_isPlaying;
-                  });
-                  if (_isPlaying) {
-                    startPlaying();
-                  } else {
-                    stopPlaying();
-                  }
-                }
-              },
-              child: Text(_isPlaying ? "중지" : "재생")),
           const SizedBox(height: 32),
           Flexible(
               flex: 1,
@@ -83,16 +64,41 @@ class _RecorderState extends State<Recorder> {
                 itemCount: _fileList.length,
                 itemBuilder: (context, i) => _setListItemBuilder(context, i),
               )),
-          Container(
-              padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
-              child: ElevatedButton(
-                  onPressed: () {
-                    deleteFiles();
-                    setState(() {
-                      _fileList = loadFiles();
-                    });
-                  },
-                  child: Text("전체 삭제")))
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Container(
+                  padding: const EdgeInsets.fromLTRB(0, 0, 8, 32),
+                  child: ElevatedButton(
+                      onPressed: () {
+                        if (_fileList.isNotEmpty) {
+                          setState(() {
+                            _isPlaying = !_isPlaying;
+                          });
+                          print("test: $_isPlaying, $_selectedFile");
+                          if (_isPlaying) {
+                            startPlaying();
+                          } else {
+                            stopPlaying();
+                          }
+                        }
+                      },
+                      child: Text(_isPlaying ? "중지" : "음성 재생"))),
+              Container(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 0, 32),
+                  child: ElevatedButton(
+                      onPressed: () {
+                        deleteFiles();
+                        setState(() {
+                          _fileList = loadFiles();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        primary: Colors.redAccent
+                      ),
+                      child: Text("전체 삭제")))
+            ],
+          )
         ],
       ),
     );
@@ -103,6 +109,10 @@ class _RecorderState extends State<Recorder> {
     setState(() {
       _fileList = loadFiles();
     });
+    if (_fileList.isNotEmpty) {
+      _selectedFile = _fileList[0];
+    }
+
 
     _recordingSession = FlutterSoundRecorder();
     await _recordingSession.openAudioSession(
@@ -126,10 +136,6 @@ class _RecorderState extends State<Recorder> {
       if (checkExtWav(file.path)) {
         files.add(getFilenameFromPath(file.path));
       }
-    }
-
-    if (files.isNotEmpty) {
-      _selectedFile = files[0];
     }
 
     files.sort();
@@ -167,6 +173,7 @@ class _RecorderState extends State<Recorder> {
     setState(() {
       _isRecording = true;
     });
+    print("filePathForRecording: $_filePathForRecord");
     Directory directory = Directory(dirname(_filePathForRecord));
     if (!directory.existsSync()) {
       directory.createSync();
@@ -183,15 +190,24 @@ class _RecorderState extends State<Recorder> {
       _isRecording = false;
     });
     _recordingSession.closeAudioSession();
+
+    setState(() {
+      bool first = _fileList.isEmpty ? true : false;
+      _fileList = loadFiles();
+      if (first) {
+        _selectedFile = _fileList[0];
+      }
+    });
     return await _recordingSession.stopRecorder();
   }
 
   Future<void> startPlaying() async {
     recordingPlayer.open(
-      Audio.file('$_storagePath/$_selectedFile.wav'),
+      Audio.file('$_storagePath/$_selectedFile'),
       autoStart: true,
       showNotification: true,
     );
+    print("filePathForPlaying $_storagePath/$_selectedFile");
     recordingPlayer.playlistAudioFinished.listen((event) {
       setState(() {
         _isPlaying = false;
