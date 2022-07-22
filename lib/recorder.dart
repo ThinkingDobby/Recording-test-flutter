@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
 import 'package:mfcc/mfcc.dart';
 import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -24,9 +23,11 @@ class _RecorderState extends State<Recorder> {
   bool _isRecording = false;
   bool _isPlaying = false;
 
-  late String filePath;
+  late String _filePath;
+  late String _ffmpegFilePath;
 
-  final FlutterFFmpeg _flutterFFmpeg = FlutterFFmpeg();
+  final FlutterSoundFFmpeg _flutterFFmpeg = FlutterSoundFFmpeg();
+  String _mfccText = "";
 
 
   @override
@@ -46,9 +47,9 @@ class _RecorderState extends State<Recorder> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              ElevatedButton(onPressed: _isRecording ? null : startRecording, child: Text("녹음 시작")),
+              ElevatedButton(onPressed: _isRecording ? null : startRecording, child: const Text("녹음 시작")),
               const SizedBox(width:16),
-              ElevatedButton(onPressed: _isRecording ? stopRecording : null, child: Text("녹음 중지")),
+              ElevatedButton(onPressed: _isRecording ? stopRecording : null, child: const Text("녹음 중지")),
             ],
           ),
           const SizedBox(height: 22),
@@ -64,13 +65,16 @@ class _RecorderState extends State<Recorder> {
                 }
               },
               child: Text(_isPlaying ? "중지" : "재생")),
+          const SizedBox(height: 32),
+          Text(_mfccText)
         ],
       ),
     );
   }
 
   void initializer() async {
-    filePath = '/sdcard/Download/temp.wav';
+    _filePath = '/sdcard/Download/temp.wav';
+    _ffmpegFilePath = '/sdcard/Download/flutter_sound_test.txt';
     _recordingSession = FlutterSoundRecorder();
     await _recordingSession.openAudioSession(
         focus: AudioFocus.requestFocusAndStopOthers,
@@ -89,13 +93,13 @@ class _RecorderState extends State<Recorder> {
     setState(() {
       _isRecording = true;
     });
-    Directory directory = Directory(dirname(filePath));
+    Directory directory = Directory(dirname(_filePath));
     if (!directory.existsSync()) {
       directory.createSync();
     }
     _recordingSession.openAudioSession();
     await _recordingSession.startRecorder(
-      toFile: filePath,
+      toFile: _filePath,
       codec: Codec.pcm16WAV,
     );
   }
@@ -104,13 +108,22 @@ class _RecorderState extends State<Recorder> {
     setState(() {
       _isRecording = false;
     });
-    _recordingSession.closeAudioSession();
+    await _recordingSession.closeAudioSession();
+    var mfcc = getMFCC(await getPeakLevels(_filePath));
+    StringBuffer tmp = StringBuffer();
+    for (List<double> i in mfcc) {
+      tmp.write("$i");
+    }
+    setState(() {
+      _mfccText = tmp.toString();
+    });
+
     return await _recordingSession.stopRecorder();
   }
 
   Future<void> startPlaying() async {
     recordingPlayer.open(
-      Audio.file(filePath),
+      Audio.file(_filePath),
       autoStart: true,
       showNotification: true,
     );
@@ -125,15 +138,15 @@ class _RecorderState extends State<Recorder> {
     recordingPlayer.stop();
   }
 
-  Future<List<int>> getPeakLevels(String _pathAudio) async {
-    File outputFile = File('/data/user/0/com.flutter.shoutout/cache/1-flutter_sound_example.txt');
+  Future<List<double>> getPeakLevels(String _pathAudio) async {
+    File outputFile = File(_ffmpegFilePath);
 
     await _flutterFFmpeg
         .execute(
         "-i '$_pathAudio' -af aresample=16000,asetnsamples=16000,astats=reset=1:metadata=1,ametadata=print:key='lavfi.astats.Overall.Peak_level':file=${outputFile.path} -f null -")
         .then((rc) => print("FFmpeg process exited with rc $rc"));
 
-    List<int> wave = [];
+    List<double> wave = [];
 
     await outputFile
         .openRead()
@@ -142,7 +155,7 @@ class _RecorderState extends State<Recorder> {
         .forEach((l) {
       if (l.startsWith("frame")) return;
       double value = double.tryParse(l.split("=").last) ?? 0;
-      wave.add(70 + value.toInt());
+      wave.add(70 + value.toDouble());
     });
 
     return wave;
