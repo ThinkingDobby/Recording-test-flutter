@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
 import 'package:path/path.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -22,6 +24,8 @@ class _RecorderState extends State<Recorder> {
   bool _isPlaying = false;
 
   late String filePath;
+
+  final FlutterFFmpeg _flutterFFmpeg = FlutterFFmpeg();
 
 
   @override
@@ -118,5 +122,29 @@ class _RecorderState extends State<Recorder> {
 
   Future<void> stopPlaying() async {
     recordingPlayer.stop();
+  }
+
+  Future<List<int>> getPeakLevels(String _pathAudio) async {
+    File outputFile = File(
+        '/data/user/0/com.flutter.shoutout/cache/1-flutter_sound_example.txt');
+
+    await _flutterFFmpeg
+        .execute(
+        "-i '$_pathAudio' -af aresample=16000,asetnsamples=16000,astats=reset=1:metadata=1,ametadata=print:key='lavfi.astats.Overall.Peak_level':file=${outputFile.path} -f null -")
+        .then((rc) => print("FFmpeg process exited with rc $rc"));
+
+    List<int> wave = [];
+
+    await outputFile
+        .openRead()
+        .map(utf8.decode)
+        .transform(const LineSplitter())
+        .forEach((l) {
+      if (l.startsWith("frame")) return;
+      double value = double.tryParse(l.split("=").last) ?? 0;
+      wave.add(70 + value.toInt());
+    });
+
+    return wave;
   }
 }
